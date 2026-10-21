@@ -43,3 +43,25 @@ def get_profit_per_product(df):
     )
 
     return product_winst
+
+
+def get_data_summary(df):
+    return {
+        "aantal_rijen": len(df),
+        "aantal_producten": df["Product"].nunique(),
+        "aantal_steden": df["Stad"].nunique(),
+        "totale_omzet": df["Omzet"].sum(),
+        "totale_kosten": df["Kosten"].sum(),
+        "totale_winst": df["Omzet"].sum() - df["Kosten"].sum()
+    }
+
+def get_financial_analysis(df):
+    omzet = df["Omzet"].sum()
+    kosten = df["Kosten"].sum()
+    winst = omzet - kosten
+
+    return {
+        "totale_omzet": int(omzet),
+        "totale_kosten": int(kosten),
+        "totale_winst": int(winst)
+    }

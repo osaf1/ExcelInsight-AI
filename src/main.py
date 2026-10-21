@@ -5,7 +5,8 @@ from analysis import (
     get_best_product,
     get_best_city,
     get_worst_product,
-    get_profit_per_product
+    get_profit_per_product,
+    get_data_summary
 )
 
 
@@ -73,3 +74,10 @@ winst_per_product = get_profit_per_product(df)
 print()
 print("Winst per product:")
 print(winst_per_product)
+
+# Data overzicht
+summary = get_data_summary(df)
+
+print()
+print("Data overzicht:")
+print(summary)
