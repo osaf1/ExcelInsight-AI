@@ -1,87 +1,60 @@
-import pandas as pd
+
+import json
 from ollama import chat
 
 from analysis import (
-    get_financial_analysis,
-    get_best_product,
-    get_best_city,
-    get_worst_product,
-    get_profit_per_product,
-    get_data_summary
+    get_data_summary,
+    calculate_column,
+    group_column
 )
 
-
-# Beschikbare AI-tools
 tools = [
     {
         "type": "function",
         "function": {
-            "name": "get_financial_analysis",
-            "description": "Geeft totale omzet, kosten en winst uit de Excel-data.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_best_product",
-            "description": "Geeft het product met de hoogste omzet.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_best_city",
-            "description": "Geeft de stad met de hoogste omzet.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_worst_product",
-            "description": "Geeft het product met de laagste omzet.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "get_profit_per_product",
-            "description": "Geeft de totale winst per product.",
-            "parameters": {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "get_data_summary",
-            "description": "Geeft een algemeen overzicht van de Excel-data.",
+            "description": "Toon kolommen, voorbeelddata en statistieken van het Excel-bestand.",
             "parameters": {
                 "type": "object",
                 "properties": {},
                 "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "calculate_column",
+            "description": "Bereken som, gemiddelde, minimum, maximum of aantal van een numerieke kolom.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "column": {"type": "string"},
+                    "operation": {
+                        "type": "string",
+                        "enum": ["sum", "mean", "min", "max", "count"]
+                    }
+                },
+                "required": ["column", "operation"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "group_column",
+            "description": "Bereken waarden per groep, bijvoorbeeld omzet per stad of gemiddelde cijfers per klas.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "group_by": {"type": "string"},
+                    "value_column": {"type": "string"},
+                    "operation": {
+                        "type": "string",
+                        "enum": ["sum", "mean", "count", "min", "max"]
+                    }
+                },
+                "required": ["group_by", "value_column", "operation"]
             }
         }
     }
@@ -89,27 +62,31 @@ tools = [
 
 
 available_functions = {
-    "get_financial_analysis": get_financial_analysis,
-    "get_best_product": get_best_product,
-    "get_best_city": get_best_city,
-    "get_worst_product": get_worst_product,
-    "get_profit_per_product": get_profit_per_product,
-    "get_data_summary": get_data_summary
+    "get_data_summary": get_data_summary,
+    "calculate_column": calculate_column,
+    "group_column": group_column
 }
 
 
 def ask_ai(question, df):
 
+    if df.empty:
+        return "Het Excel-bestand bevat geen gegevens."
+
+    columns = list(df.columns)
+
     messages = [
         {
             "role": "system",
             "content": (
-                "Je bent ExcelInsight AI, een data-analyseassistent. "
-                "Beantwoord vragen uitsluitend op basis van de meegegeven Excel-data. "
-                "Gebruik altijd een beschikbare tool wanneer exacte cijfers nodig zijn. "
-                "Verzin nooit cijfers. "
-                "Als de vraag niet uit de data kan worden beantwoord, zeg dat duidelijk. "
-                "Geef korte, duidelijke antwoorden in het Nederlands."
+                "Je bent ExcelInsight AI. "
+                "Je analyseert verschillende Excel-bestanden. "
+                f"Beschikbare kolommen: {json.dumps(columns, ensure_ascii=False)}. "
+                "Gebruik exact deze kolomnamen. "
+                "Gebruik de tools voor berekeningen. "
+                "Verzin nooit gegevens of cijfers. "
+                "Als gegevens ontbreken, zeg dat duidelijk. "
+                "Antwoord in eenvoudig Nederlands."
             )
         },
         {
@@ -126,30 +103,37 @@ def ask_ai(question, df):
 
     messages.append(response.message)
 
-    if response.message.tool_calls:
-
-        for tool_call in response.message.tool_calls:
-
-            function_name = tool_call.function.name
-            function_to_call = available_functions.get(function_name)
-
-            if function_to_call:
-                result = function_to_call(df)
-
-                messages.append(
-                    {
-                        "role": "tool",
-                        "tool_name": function_name,
-                        "content": str(result)
-                    }
-                )
-
-        final_response = chat(
-            model="llama3.2:3b",
-            messages=messages,
-            tools=tools
+    if not response.message.tool_calls:
+        return (
+            "Ik kan deze vraag niet betrouwbaar berekenen. "
+            "Probeer je vraag specifieker te stellen."
         )
 
-        return final_response.message.content
+    for tool_call in response.message.tool_calls:
+        name = tool_call.function.name
+        arguments = tool_call.function.arguments or {}
 
-    return response.message.content
+        function = available_functions.get(name)
+
+        if function is None:
+            result = {"error": "Onbekende functie."}
+        else:
+            try:
+                result = function(df, **arguments)
+            except (TypeError, ValueError, KeyError) as error:
+                result = {"error": str(error)}
+
+        messages.append({
+            "role": "tool",
+            "tool_name": name,
+            "content": json.dumps(
+                result, ensure_ascii=False, default=str
+            )
+        })
+
+    final_response = chat(
+        model="llama3.2:3b",
+        messages=messages
+    )
+
+    return final_response.message.content

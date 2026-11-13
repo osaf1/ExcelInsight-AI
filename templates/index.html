@@ -283,11 +283,11 @@
             (.xlsx of .xls).
         </p>
 
-
         <form
-            method="POST"
-            enctype="multipart/form-data"
-        >
+        action="/"
+        method="POST"
+        enctype="multipart/form-data"
+    >
 
             <input
                 type="file"
@@ -319,6 +319,40 @@
             <p class="filename">
                 📄 {{ filename }}
             </p>
+
+{% if dataset_info %}
+
+<h3>Algemene informatie</h3>
+
+<div class="stats">
+
+    <div class="stat">
+        <h3>Aantal rijen</h3>
+        <p>{{ dataset_info.aantal_rijen }}</p>
+    </div>
+
+    <div class="stat">
+        <h3>Aantal kolommen</h3>
+        <p>{{ dataset_info.aantal_kolommen }}</p>
+    </div>
+
+    <div class="stat">
+        <h3>Numerieke kolommen</h3>
+        <p>{{ dataset_info.numerieke_kolommen|length }}</p>
+    </div>
+
+</div>
+
+<h3>Kolomnamen</h3>
+
+<ul>
+    {% for column in dataset_info.kolomnamen %}
+        <li>{{ column }}</li>
+    {% endfor %}
+</ul>
+
+{% endif %}
+
 
 
             {% if financials %}

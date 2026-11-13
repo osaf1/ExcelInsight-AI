@@ -1,67 +1,90 @@
+
 import pandas as pd
 
 
-def calculate_financials(df):
-    totale_omzet = df["Omzet"].sum()
-    totale_kosten = df["Kosten"].sum()
-    totale_winst = totale_omzet - totale_kosten
-
-    return totale_omzet, totale_kosten, totale_winst
-
-
-def get_best_product(df):
-    product_omzet = df.groupby("Product")["Omzet"].sum()
-
-    beste_product = product_omzet.idxmax()
-    hoogste_omzet = product_omzet.max()
-
-    return beste_product, hoogste_omzet
-
-
-def get_best_city(df):
-    stad_omzet = df.groupby("Stad")["Omzet"].sum()
-
-    beste_stad = stad_omzet.idxmax()
-    hoogste_omzet = stad_omzet.max()
-
-    return beste_stad, hoogste_omzet
-
-
-def get_worst_product(df):
-    product_omzet = df.groupby("Product")["Omzet"].sum()
-
-    slechtste_product = product_omzet.idxmin()
-    laagste_omzet = product_omzet.min()
-
-    return slechtste_product, laagste_omzet
-
-
-def get_profit_per_product(df):
-    product_winst = df.groupby("Product").apply(
-        lambda x: x["Omzet"].sum() - x["Kosten"].sum(),
-        include_groups=False
-    )
-
-    return product_winst
+def get_dataset_info(df):
+    return {
+        "aantal_rijen": len(df),
+        "aantal_kolommen": len(df.columns),
+        "kolomnamen": list(df.columns),
+        "numerieke_kolommen": list(
+            df.select_dtypes(include="number").columns
+        ),
+        "voorbeeld_data": (
+            df.head(5)
+            .fillna("")
+            .astype(str)
+            .to_dict(orient="records")
+        )
+    }
 
 
 def get_data_summary(df):
-    return {
-        "aantal_rijen": len(df),
-        "aantal_producten": df["Product"].nunique(),
-        "aantal_steden": df["Stad"].nunique(),
-        "totale_omzet": df["Omzet"].sum(),
-        "totale_kosten": df["Kosten"].sum(),
-        "totale_winst": df["Omzet"].sum() - df["Kosten"].sum()
+    summary = get_dataset_info(df)
+
+    summary["ontbrekende_waarden"] = (
+        df.isna().sum().to_dict()
+    )
+
+    summary["statistieken"] = (
+        df.describe(include="all")
+        .fillna("")
+        .astype(str)
+        .to_dict()
+    )
+
+    return summary
+
+
+def calculate_column(df, column, operation):
+    if column not in df.columns:
+        return {"error": f"Kolom '{column}' bestaat niet."}
+
+    data = pd.to_numeric(df[column], errors="coerce")
+
+    if data.notna().sum() == 0:
+        return {"error": "Deze kolom bevat geen numerieke waarden."}
+
+    operations = {
+        "sum": data.sum,
+        "mean": data.mean,
+        "min": data.min,
+        "max": data.max,
+        "count": data.count
     }
 
-def get_financial_analysis(df):
-    omzet = df["Omzet"].sum()
-    kosten = df["Kosten"].sum()
-    winst = omzet - kosten
+    if operation not in operations:
+        return {"error": "Onbekende berekening."}
 
     return {
-        "totale_omzet": int(omzet),
-        "totale_kosten": int(kosten),
-        "totale_winst": int(winst)
+        "kolom": column,
+        "berekening": operation,
+        "resultaat": float(operations[operation]())
+    }
+
+
+def group_column(df, group_by, value_column, operation="sum"):
+    if group_by not in df.columns or value_column not in df.columns:
+        return {"error": "Een of meer kolommen bestaan niet."}
+
+    data = df.copy()
+    data[value_column] = pd.to_numeric(
+        data[value_column], errors="coerce"
+    )
+
+    if operation not in ["sum", "mean", "count", "min", "max"]:
+        return {"error": "Onbekende berekening."}
+
+    result = data.groupby(
+        group_by, dropna=False
+    )[value_column].agg(operation)
+
+    return {
+        "groepering": group_by,
+        "waarde_kolom": value_column,
+        "berekening": operation,
+        "resultaten": {
+            str(k): float(v) if pd.notna(v) else None
+            for k, v in result.items()
+        }
     }
